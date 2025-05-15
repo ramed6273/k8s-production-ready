@@ -1,0 +1,4 @@
+.git/
+*.vdi
+*.log
+.vagrant/

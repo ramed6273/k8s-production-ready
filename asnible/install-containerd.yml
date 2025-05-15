@@ -1,0 +1,132 @@
+---
+- name: Harden all Kubernetes nodes
+  hosts: all
+  become: true
+
+  tasks:
+
+    - name: Install essential packages
+      apt:
+        name:
+          - wget
+          - git
+          - vim
+          - bash-completion
+          - curl
+          - htop
+          - net-tools
+          - dnsutils
+          - atop
+          - sudo
+          - software-properties-common
+          - telnet
+          - axel
+          - jq
+          - iotop
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+          - apt-transport-https
+        state: present
+        update_cache: true
+    - name: create /etc/apt/keyrings dir
+      file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: '0755'
+
+    - name: Docker GPG key
+      shell: |
+        curl -fsSL "https://store.dockerme.ir/Software/docker.gpg" | gpg --dearmor --yes -o /etc/apt/keyrings/docker.gpg
+      args:
+        creates: /etc/apt/keyrings/docker.gpg
+
+    - name: Docker APT repo to sourcelist mecan
+      copy:
+        dest: /etc/apt/sources.list.d/docker.list
+        content: |
+          deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.gpg] https://repo.mecan.ir/repository/debian-docker bookworm stable
+        mode: '0644'
+
+    - name: apt update
+      apt:
+        update_cache: yes
+
+    - name: Install containerd.io
+      apt:
+        name: containerd.io
+        state: present
+
+    - name: enable containerd service
+      service:
+        name: containerd
+        enabled: yes
+
+    - name: restart containerd
+      service:
+        name: containerd
+        state: restarted
+
+    - name: containerd config.toml
+      shell: containerd config default > /etc/containerd/config.toml
+      args:
+        creates: /etc/containerd/config.toml
+
+    - name: enable systemdcgroup
+      replace:
+        path: /etc/containerd/config.toml
+        regexp: '^SystemdCgroup = false'
+        replace: 'SystemdCgroup = true'
+
+    - name: Ensure containerd.service.d directory exists
+      file:
+        path: /etc/systemd/system/containerd.service.d
+        state: directory
+        mode: '0755'
+
+    - name: Create containerd HTTP proxy configuration
+      copy:
+        dest: /etc/systemd/system/containerd.service.d/http-proxy.conf
+        content: |
+          [Service]
+          Environment="HTTP_PROXY=http://asir.mecan.ir:8123"
+          Environment="HTTPS_PROXY=http://asir.mecan.ir:8123"
+          Environment="NO_PROXY=localhost,127.0.0.1,10.233.0.0/18,10.233.64.0/18,.mecan.ir"
+        mode: '0644'
+
+    - name: Insert registry mirrors block into containerd config
+      blockinfile:
+        path: /etc/containerd/config.toml
+        insertafter: '^\[plugins."io.containerd.grpc.v1.cri".registry.mirrors\]'
+        marker: "# {mark} ANSIBLE REGISTRY MIRRORS BLOCK"
+        block: |
+          [plugins."io.containerd.grpc.v1.cri".registry.mirrors."docker.io"]
+            endpoint = ["https://hub.mecan.ir"]
+          [plugins."io.containerd.grpc.v1.cri".registry.mirrors."registry.k8s.io"]
+            endpoint = ["https://k8s.mecan.ir"]
+          [plugins."io.containerd.grpc.v1.cri".registry.mirrors."quay.io"]
+            endpoint = ["https://quay.mecan.ir"]
+          [plugins."io.containerd.grpc.v1.cri".registry.mirrors."mirror.gcr.io"]
+            endpoint = ["https://gcr.mecan.ir"]
+
+    - name: Reload systemd daemon after proxy change
+      command: systemctl daemon-reexec
+
+    - name: Restart containerd to apply all changes
+      service:
+        name: containerd
+        state: restarted
+      
+    - name: Add hostnames to /etc/hosts
+      blockinfile:
+        path: /etc/hosts
+        block: |
+          192.168.56.10 lb
+          192.168.56.11 master1
+          192.168.56.12 master2
+          192.168.56.13 master3
+          192.168.56.21 worker1
+          192.168.56.22 worker2
+          192.168.56.23 worker3
+

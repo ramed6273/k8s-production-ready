@@ -1,0 +1,21 @@
+---
+- name: Restore original DNS configuration
+  hosts: all
+  become: yes
+
+  tasks:
+    - name: Replace DNS config with original values
+      blockinfile:
+        path: /etc/systemd/resolved.conf
+        marker: "# {mark} ANSIBLE MANAGED DNS CONFIG"
+        block: |
+          [Resolve]
+          DNS=8.8.8.8 1.1.1.1
+          FallbackDNS= 185.51.200.2 178.22.122.100
+        create: yes
+
+    - name: Restart systemd-resolved
+      service:
+        name: systemd-resolved
+        state: restarted
+
