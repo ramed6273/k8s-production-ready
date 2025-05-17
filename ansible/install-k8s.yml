@@ -1,0 +1,100 @@
+---
+- name: install k8s
+  hosts: masters, workers
+  become: true
+
+  tasks:
+
+    - name: enable port forwarding
+      copy:
+        dest: /etc/sysctl.d/kubernetes.conf
+        content: |
+          net.bridge.bridge-nf-call-ip6tables = 1
+          net.bridge.bridge-nf-call-iptables = 1
+        mode: '0644'
+
+    - name: enable netfilter
+      command: modprobe br_netfilter
+
+    - name: Remove swap entries from /etc/fstab
+      lineinfile:
+        path: /etc/fstab
+        state: absent
+        regexp: '^\s*[^#]+\s+swap\s+'
+        backrefs: yes
+
+    - name: Disable swap immediately
+      command: swapoff -a
+
+    - name: install requirements
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gpg
+
+    - name: download k8s gpg key
+      shell: |
+        curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+      args:
+        creates: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+
+    - name: k8s apt repo to source list
+      copy:
+        dest: /etc/apt/sources.list.d/kubernetes.list
+        content: |
+          deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.30/deb/ /
+        mode: '0644'
+
+    - name: Update apt and instakk k8s
+      apt:
+        name:
+          - kubelet
+          - kubeadm
+          - kubectl
+        update_cache: yes
+
+    - name: Hold Kubernetes packages
+      apt:
+        name:
+          - kubelet
+          - kubeadm
+          - kubectl
+        state: hold
+
+    - name: Enable kubelet service
+      systemd:
+        name: kubelet
+        enabled: yes
+        state: started
+
+    - name: crictl conf to use containerd
+      copy:
+        dest: /etc/crictl.yaml
+        content: |
+          runtime-endpoint: "unix:///run/containerd/containerd.sock"
+          timeout: 0
+          debug: false
+        mode: '0644'
+
+    - name: Add variable to /etc/environment
+      blockinfile:
+        path: /etc/environment
+        block: |
+          vip_ip=192.168.56.10
+          master1_ip=192.168.56.11
+          master2_ip=192.168.56.12
+          master3_ip=192.168.56.13
+          worker1_ip=192.168.56.21
+          worker2_ip=192.168.56.22
+          worker3_ip=192.168.56.23
+          domain_name=ramed.ir
+          master1_name=master1
+          master2_name=master2
+          master3_name=master3
+          worker1_name=worker1
+          worker2_name=worker2
+          worker3_name=worker3
+          vip_api_name=vip.kubeadm
+
