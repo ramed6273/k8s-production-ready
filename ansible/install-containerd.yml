@@ -1,6 +1,6 @@
 ---
 - name: Harden all Kubernetes nodes
-  hosts: all
+  hosts: masters, workers
   become: true
 
   tasks:

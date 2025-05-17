@@ -1,0 +1,82 @@
+---
+- name: install HaProxy
+  hosts: lb
+  become: true
+
+  tasks:
+    - name: Install essential packages
+      apt:
+        name:
+          - wget
+          - git
+          - vim
+          - bash-completion
+          - curl
+          - htop
+          - net-tools
+          - dnsutils
+          - atop
+          - sudo
+          - software-properties-common
+          - telnet
+          - axel
+          - jq
+          - iotop
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+          - apt-transport-https
+          - haproxy
+        state: present
+        update_cache: true
+
+    - name: config haproxy
+      copy:
+        dest: /etc/haproxy/haproxy.cfg
+        content: |
+          listen Stats-Page
+            bind *:8000
+            mode http
+            stats enable
+            stats hide-version
+            stats refresh 10s
+            stats uri /
+            stats show-legends
+            stats show-node
+            stats admin if LOCALHOST
+            stats auth ramed:ramed
+
+          frontend fe-apiserver
+            bind 0.0.0.0:6443
+            mode tcp
+            option tcplog
+            default_backend be-apiserver
+
+          backend be-apiserver
+            mode tcp
+            option tcp-check
+            balance roundrobin
+            default-server inter 10s downinter 5s rise 2 fall 2 slowstart 60s maxconn 250 maxqueue 256 weight 100
+            server master1 192.168.56.11:6443 check
+            server master2 192.168.56.12:6443 check
+            server master3 192.168.56.13:6443 check
+        mode: '0644'
+
+    - name: restart HaProxy
+      service:
+        name: haproxy
+        state: restarted
+
+    - name: Add hostnames to /etc/hosts
+      blockinfile:
+        path: /etc/hosts
+        block: |
+          192.168.56.10 lb
+          192.168.56.11 master1
+          192.168.56.12 master2
+          192.168.56.13 master3
+          192.168.56.21 worker1
+          192.168.56.22 worker2
+          192.168.56.23 worker3
+
