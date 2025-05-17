@@ -34,18 +34,33 @@
           - curl
           - gpg
 
-    - name: download k8s gpg key
+    - name: Ensure keyrings directory exists
+      file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: '0755'
+    
+    - name: Download and add Kubernetes apt key
       shell: |
-        curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+        curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
       args:
         creates: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
 
-    - name: k8s apt repo to source list
+    - name: Set correct permissions on Kubernetes GPG key
+      file:
+        path: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+        mode: '0644'
+    
+    - name: Add Kubernetes APT repository
       copy:
         dest: /etc/apt/sources.list.d/kubernetes.list
         content: |
-          deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.30/deb/ /
+          deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.30/deb /
         mode: '0644'
+    
+    - name: Update apt cache
+      apt:
+        update_cache: yes
 
     - name: Update apt and instakk k8s
       apt:
@@ -53,15 +68,21 @@
           - kubelet
           - kubeadm
           - kubectl
-        update_cache: yes
 
-    - name: Hold Kubernetes packages
-      apt:
-        name:
-          - kubelet
-          - kubeadm
-          - kubectl
-        state: hold
+    - name: Hold kubelet
+      ansible.builtin.dpkg_selections: 
+        name: kubelet
+        selection: hold
+    
+    - name: Hold kubeadm
+      ansible.builtin.dpkg_selections: 
+        name: kubeadm
+        selection: hold
+
+    - name: Hold kubectl
+      ansible.builtin.dpkg_selections: 
+        name: kubectl
+        selection: hold
 
     - name: Enable kubelet service
       systemd:
