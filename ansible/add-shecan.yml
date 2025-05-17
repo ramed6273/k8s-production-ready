@@ -1,6 +1,6 @@
 ---
 - name: Set custom DNS configuration
-  hosts: all
+  hosts: masters, workers
   become: yes
 
   tasks:

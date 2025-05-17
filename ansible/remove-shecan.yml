@@ -1,6 +1,6 @@
 ---
 - name: Restore original DNS configuration
-  hosts: all
+  hosts: masters, workers
   become: yes
 
   tasks:
