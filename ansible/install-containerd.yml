@@ -130,3 +130,22 @@
           192.168.56.22 worker2
           192.168.56.23 worker3
 
+    - name: Add variable to /etc/environment
+      blockinfile:
+        path: /etc/environment
+        block: |
+          vip_ip=192.168.56.10
+          master1_ip=192.168.56.11
+          master2_ip=192.168.56.12
+          master3_ip=192.168.56.13
+          worker1_ip=192.168.56.21
+          worker2_ip=192.168.56.22
+          worker3_ip=192.168.56.23
+          domain_name=ramed.ir
+          master1_name=master1
+          master2_name=master2
+          master3_name=master3
+          worker1_name=worker1
+          worker2_name=worker2
+          worker3_name=worker3
+          vip_api_name=vip.kubeadm
